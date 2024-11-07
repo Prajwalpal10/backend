@@ -1,6 +1,8 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const bodyParser = require('body-parser');
+const nodemailer = require('nodemailer');
+const multer = require('multer');
 const cors = require('cors');
 const dotenv = require('dotenv');
 
@@ -10,6 +12,19 @@ dotenv.config();
 const app = express();
 app.use(bodyParser.json({ limit: '4.5mb' }));
 app.use(cors());
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+const storage = multer.memoryStorage();
+const upload = multer({ storage });
+const transporter = nodemailer.createTransport({
+  service: 'gmail', // Gmail SMTP
+  auth: {
+    user: 'inquiry.ihds@gmail.com',         // Replace with your Gmail address
+    pass: 'qlvcofrqeflishvd',            // Replace with the generated App Password or your Gmail password
+  },
+});
+
 
 mongoose.connect(process.env.MONGODB_URI, {
     useNewUrlParser: true,
@@ -85,6 +100,37 @@ app.put('/IhdUploadImg/:id', async (req, res) => {
       res.status(400).json({ message: err.message });
     } 
   });
+
+
+
+app.post('/send-email', upload.single('media'), (req, res) => {
+  const { user_name, user_email, number, user_location, looks } = req.body;
+  console.log(user_name);
+  console.log(user_email);
+
+  const mailOptions = {
+    from: `"${user_name}" <${user_email}>`, // Sender's email
+    to: 'official.prajwalpal@gmail.com',                     // Recipient email
+    subject: 'New Consultation Request',
+    text: `Name: ${user_name}\nEmail: ${user_email}\nPhone: ${number}\nLocation: ${user_location}\nRequirements: ${looks}`,
+    attachments: req.file
+      ? [
+          {
+            filename: req.file.originalname,
+            content: req.file.buffer,
+          },
+        ]
+      : [],
+  };
+
+  transporter.sendMail(mailOptions, (error, info) => {
+    if (error) {
+      console.error('Error sending email:', error);
+      return res.status(500).json({ success: false, error: error.message });
+    }
+    res.status(200).json({ success: true, message: 'Email sent successfully!' });
+  });
+});
 
 const port=process.env.PORT||5000;
 
